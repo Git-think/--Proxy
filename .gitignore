@@ -10,3 +10,7 @@ pkg_dist/*
 pkg_dist/
 .idea
 /public/dist
+
+
+# Sensitive file to ignore
+1
