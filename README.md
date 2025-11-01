@@ -67,7 +67,7 @@ SOCKS5_PROXIES=               # SOCKS5 代理列表 (格式: socks5://user:pass@
 | `SEARCH_INFO_MODE` | 搜索结果展示格式 | `table` 或 `text` |
 | `OUTPUT_THINK` | 是否显示 AI 思考过程 | `true` 或 `false` |
 | `SIMPLE_MODEL_MAP` | 简化模型映射，只返回基础模型不包含变体 | `true` 或 `false` |
-| `DATA_SAVE_MODE` | 数据持久化方式 | `none`/`file`/`redis` |
+| `DATA_SAVE_MODE` | 数据持久化方式。`file` 模式下，如果 `data/data.json` 不存在，应用启动时会自动从 `.env` 的 `ACCOUNTS` 变量中读取账户信息，并为它们获取有效的令牌后存入 `data.json`。 | `none`/`file`/`redis` |
 | `REDIS_URL` | Redis 数据库连接 | `redis://localhost:6379` |
 | `CACHE_MODE` | 图片缓存存储方式 | `default`/`file` |
 | `LOG_LEVEL` | 日志级别 | `DEBUG`/`INFO`/`WARN`/`ERROR` |
