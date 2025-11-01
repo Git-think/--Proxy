@@ -12,20 +12,39 @@ const cliChatRouter = require('./routes/cli.chat.js')
 const verifyRouter = require('./routes/verify.js')
 const accountsRouter = require('./routes/accounts.js')
 const settingsRouter = require('./routes/settings.js')
+const TokenManager = require('./utils/token-manager');
+const DataPersistence = require('./utils/data-persistence');
+
 
 if (config.dataSaveMode === 'file') {
   const dataPath = path.join(__dirname, '../data/data.json');
   if (!fs.existsSync(dataPath)) {
-    const accountsEnv = process.env.ACCOUNTS;
-    let accounts = [];
-    if (accountsEnv) {
-      accounts = accountsEnv.split(',').map(item => {
-        const [email, password] = item.split(':');
-        return { email, password, token: null, expires: null };
-      });
-    }
-    fs.mkdirSync(path.dirname(dataPath), { recursive: true });
-    fs.writeFileSync(dataPath, JSON.stringify({ accounts }, null, 2));
+    (async () => {
+      const accountsEnv = process.env.ACCOUNTS;
+      if (accountsEnv) {
+        const tokenManager = new TokenManager();
+        const dataPersistence = new DataPersistence();
+        const accounts = accountsEnv.split(',').map(item => {
+          const [email, password] = item.split(':');
+          return { email, password };
+        });
+
+        const loginPromises = accounts.map(async (acc) => {
+          const token = await tokenManager.login(acc.email, acc.password);
+          if (token) {
+            const decoded = tokenManager.validateToken(token);
+            return { ...acc, token, expires: decoded.exp };
+          }
+          return { ...acc, token: null, expires: null };
+        });
+
+        const accountsWithTokens = await Promise.all(loginPromises);
+        
+        fs.mkdirSync(path.dirname(dataPath), { recursive: true });
+        fs.writeFileSync(dataPath, JSON.stringify({ accounts: accountsWithTokens }, null, 2));
+        logger.info(`成功从 .env 初始化 ${accountsWithTokens.length} 个账户到 data.json`, 'SERVER');
+      }
+    })();
   }
 }
 

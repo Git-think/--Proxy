@@ -243,7 +243,20 @@ class Account {
             } else if (account.email && account.password) {
                 // 尝试重新登录
                 logger.info(`令牌无效，尝试重新登录: ${account.email}`, 'TOKEN', '🔄')
-                const newToken = await this.tokenManager.login(account.email, account.password)
+                
+                // 为账户分配代理
+                let assignedProxy = null;
+                if (this.proxyManager) {
+                    assignedProxy = this.proxyManager.assignProxy(account.email);
+                    account.proxy = assignedProxy; // 将代理信息写入账户对象
+                }
+                
+                // 在登录前设置当前代理，用于日志显示
+                global.currentLoginProxy = assignedProxy;
+                const newToken = await this.tokenManager.login(account.email, account.password);
+                // 登录后清除全局代理变量
+                global.currentLoginProxy = null;
+
                 if (newToken) {
                     const decoded = this.tokenManager.validateToken(newToken)
                     if (decoded) {
