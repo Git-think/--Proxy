@@ -207,6 +207,9 @@ npm install
 cp .env.example .env
 # 编辑 .env 文件
 
+# 构建网页端
+cd .\public\ && npm install && npm run build && cd ../
+
 # 智能启动 (推荐 - 自动判断单进程/多进程)
 npm start
 
