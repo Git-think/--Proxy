@@ -1,5 +1,5 @@
 {
-  "name": "qwen2api",
+  "name": "qwen2api-proxy",
   "version": "2025.11.01.00.00",
   "main": "src/server.js",
   "scripts": {

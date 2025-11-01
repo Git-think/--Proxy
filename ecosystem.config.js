@@ -21,7 +21,7 @@ if (instances > cpuCores) {
 
 module.exports = {
   apps: [{
-    name: 'qwen2api',
+    name: 'qwen2api-proxy',
     script: './src/server.js',
     instances: instances,
     exec_mode: 'cluster',

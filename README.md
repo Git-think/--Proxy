@@ -4,10 +4,10 @@
 
 # 🚀 Qwen-Proxy
 
-[![Version](https://img.shields.io/badge/version-2025.11.01.00.00-blue.svg)](https://github.com/Git-think/Qwen2API)
+[![Version](https://img.shields.io/badge/version-2025.11.01.00.00-blue.svg)](https://github.com/Git-think/Qwen2Api-Proxy)
 [![Node.js](https://img.shields.io/badge/Node.js-18+-green.svg)](https://nodejs.org/)
-[![Docker](https://img.shields.io/badge/Docker-supported-blue.svg)](https://hub.docker.com/r/Git-think/qwen2api)
-[![Binary](https://img.shields.io/badge/Binary-Available-orange.svg)](https://github.com/Git-think/Qwen2API/releases)
+[![Docker](https://img.shields.io/badge/Docker-supported-blue.svg)](https://hub.docker.com/r/Git-think/qwen2api-proxy)
+[![Binary](https://img.shields.io/badge/Binary-Available-orange.svg)](https://github.com/Git-think/Qwen2Api-Proxy/releases)
 
 [📖 文档](#api-文档) | [🐳 Docker 部署](#docker-部署)
 
@@ -178,15 +178,15 @@ docker run -d \
   -e ACCOUNTS= \
   -e SOCKS5_PROXIES=socks5://user:pass@host:port \
   -v ./caches:/app/caches \
-  --name qwen2api \
-  Git-think/qwen2api:latest
+  --name qwen2api-proxy \
+  git0think/qwen2api-proxy:latest
 ```
 
 #### 方式二：Docker Compose
 
 ```bash
 # 下载配置文件
-curl -o docker-compose.yml https://raw.githubusercontent.com/Git-think/Qwen2API/refs/heads/main/docker-compose.yml
+curl -o docker-compose.yml https://raw.githubusercontent.com/Git-think/Qwen2Api-Proxy/refs/heads/main/docker-compose.yml
 
 # 启动服务
 docker compose pull && docker compose up -d
@@ -196,8 +196,8 @@ docker compose pull && docker compose up -d
 
 ```bash
 # 克隆项目
-git clone https://github.com/Git-think/Qwen2API.git
-cd Qwen2API
+git clone https://github.com/Git-think/Qwen2Api-Proxy.git
+cd Qwen2Api-Proxy
 
 # 安装依赖
 npm install
@@ -242,7 +242,7 @@ npm run dev
 ## 📁 项目结构
 
 ```
-Qwen2API/
+Qwen2Api-Proxy/
 ├── Dockerfile
 ├── README.md
 ├── docker-compose.yml

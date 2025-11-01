@@ -1,7 +1,7 @@
 services:
-  qwen2api:
-    container_name: qwen2api
-    image: rfym21/qwen2api:latest
+  qwen2api-proxy:
+    container_name: qwen2api-proxy
+    image: git0think/qwen2api-proxy:latest
     restart: always
     ports:
       - "3000:3000"
@@ -39,7 +39,7 @@ services:
       - CACHE_MODE=default
   redis:
     image: redis:7.2-alpine
-    container_name: redis_qwen2api
+    container_name: redis_qwen2api-proxy
     restart: always
     ports:
       - "6379:6379"
