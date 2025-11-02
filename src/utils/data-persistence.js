@@ -1,19 +1,26 @@
 const fs = require('fs').promises;
 const path = require('path');
-const loadConfig = require('../config/index.js');
 const { logger } = require('./logger');
 const redis = require('./redis');
 
 class DataPersistence {
     constructor() {
-        this.mode = null; // 将在 init 中设置
+        // 直接从环境变量初始化，打破循环依赖
+        this.mode = process.env.DATA_SAVE_MODE || 'none';
         this.filePath = path.join(__dirname, '../../data/data.json');
         this.cache = null;
+        this._initializationPromise = this._initialize();
     }
 
-    async init() {
-        const config = await loadConfig();
-        this.mode = config.dataSaveMode;
+    async _initialize() {
+        try {
+            await this._getData(); // 预加载数据
+            logger.info(`数据持久化模块初始化完成 (模式: ${this.mode})`, 'DATA');
+        } catch (error) {
+            logger.error('数据持久化模块初始化失败', 'DATA', '', error);
+            // 在这种情况下，我们可能希望进程退出或进入降级模式
+            throw error; // 抛出错误以在顶层捕获
+        }
     }
 
     async _getData() {
@@ -120,9 +127,4 @@ class DataPersistence {
 }
 
 const instance = new DataPersistence();
-// 异步初始化
-instance.init().catch(err => {
-    logger.error('Failed to initialize DataPersistence', 'DATA', '', err);
-    process.exit(1);
-});
 module.exports = instance;
