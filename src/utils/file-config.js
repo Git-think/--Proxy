@@ -10,7 +10,6 @@ const SET_ENV_FILE = path.join(DATA_DIR, 'set-env');
 
 class FileConfig {
     async applyFileConfig() {
-        await this.handleSetEnv(); // Must be first to override envs
         await this.handleReloadEnv();
         await this.handleAdd();
     }
@@ -63,38 +62,6 @@ class FileConfig {
         } catch (error) {
             if (error.code !== 'ENOENT') {
                 logger.error('处理 add 文件失败', 'FILE_CONFIG', '', error);
-            }
-        }
-    }
-
-    async handleSetEnv() {
-        try {
-            await fs.access(SET_ENV_FILE);
-            logger.info('检测到 set-env 文件，正在处理...', 'FILE_CONFIG', '📝');
-
-            const content = await fs.readFile(SET_ENV_FILE, 'utf8');
-            const lines = content.split(/\r?\n/);
-
-            let data = await dataPersistence._getData();
-            if (!data.settings) {
-                data.settings = {};
-            }
-
-            for (const line of lines) {
-                const [key, ...values] = line.split('=');
-                const value = values.join('=').trim();
-                if (key && value) {
-                    logger.info(`设置环境变量: ${key}=${value}`, 'FILE_CONFIG');
-                    data.settings[key.trim()] = value;
-                }
-            }
-            await dataPersistence._saveData(data);
-
-            await fs.unlink(SET_ENV_FILE);
-            logger.success('set-env 文件处理完毕并已删除', 'FILE_CONFIG');
-        } catch (error) {
-            if (error.code !== 'ENOENT') {
-                logger.error('处理 set-env 文件失败', 'FILE_CONFIG', '', error);
             }
         }
     }
