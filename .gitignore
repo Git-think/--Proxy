@@ -2,7 +2,9 @@ node_modules
 package-lock.json
 .env
 data/data.json
-data
+data/add
+data/set-env
+data/reload-env
 caches
 logs/
 *.log

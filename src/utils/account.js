@@ -36,14 +36,14 @@ class Account {
      */
     async _initialize() {
         try {
-            await this._processSetEnvFile(); // 处理 set-env 文件
-            await this._processAddFile(); // 处理 add 文件
-            await this._processReloadEnvFile(); // 处理 reload-env 文件
+            // 1. 首先处理 set-env，因为它会影响配置加载
+            await this._processSetEnvFile();
 
+            // 2. 加载配置
             this.config = await loadConfig();
             this.defaultHeaders = this.config.defaultHeaders || {};
 
-            // 初始化 ProxyManager
+            // 3. 初始化代理管理器，后续操作可能需要它
             if (this.config.socks5Proxies.length > 0) {
                 const ProxyManager = require('./proxy-manager');
                 this.proxyManager = new ProxyManager(this.dataPersistence, this.config);
@@ -55,7 +55,11 @@ class Account {
                 logger.info('未配置 SOCKS5 代理，将直接连接', 'PROXY');
             }
 
-            // 加载账户信息
+            // 4. 处理依赖于配置和代理管理器的文件
+            await this._processAddFile();
+            await this._processReloadEnvFile();
+
+            // 5. 加载持久化的账户信息
             await this.loadAccountTokens()
 
             // 为已加载的账户对象附加代理信息
@@ -86,10 +90,12 @@ class Account {
      */
     async loadAccountTokens() {
         try {
-            this.accountTokens = await this.dataPersistence.loadAccounts()
+            // 先直接从持久化层加载一次，用于判断是否首次启动
+            const persistedAccounts = await this.dataPersistence.loadAccounts();
+            this.accountTokens = persistedAccounts;
 
-            // 首次启动时，如果data.json为空，则从.env初始化
-            if (this.accountTokens.length === 0 && process.env.ACCOUNTS) {
+            // 首次启动时（持久化层为空），才从.env初始化
+            if (persistedAccounts.length === 0 && process.env.ACCOUNTS) {
                 logger.info('检测到首次启动，正在从 .env 初始化账户...', 'ACCOUNT');
                 const accountsEnv = process.env.ACCOUNTS;
                 const accounts = accountsEnv.split(',').map(item => {

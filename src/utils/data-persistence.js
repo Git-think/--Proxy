@@ -5,49 +5,52 @@ const redis = require('./redis');
 
 class DataPersistence {
     constructor() {
-        // 直接从环境变量初始化，打破循环依赖
         this.mode = process.env.DATA_SAVE_MODE || 'none';
         this.filePath = path.join(__dirname, '../../data/data.json');
         this.cache = null;
-        this._initializationPromise = this._initialize();
+        this.isInitialized = false;
+        this.initializationPromise = this._initialize();
     }
 
     async _initialize() {
+        if (this.isInitialized) {
+            return;
+        }
         try {
-            await this._getData(); // 预加载数据
+            // 核心逻辑只执行一次
+            if (this.mode === 'file') {
+                try {
+                    const data = await fs.readFile(this.filePath, 'utf8');
+                    this.cache = JSON.parse(data);
+                } catch (error) {
+                    if (error.code === 'ENOENT') {
+                        logger.info('数据文件不存在，正在创建默认文件...', 'FILE');
+                        const defaultData = this._getDefaultData();
+                        await this._saveData(defaultData); // _saveData 内部会设置缓存
+                        logger.success('默认数据文件创建成功', 'FILE');
+                    } else {
+                        throw error; // 抛出其他读取错误
+                    }
+                }
+            } else if (this.mode === 'redis') {
+                const data = await redis.get('qwen_proxy_data');
+                this.cache = data ? JSON.parse(data) : this._getDefaultData();
+            } else {
+                this.cache = this._getDefaultData();
+            }
+
+            this.isInitialized = true;
             logger.info(`数据持久化模块初始化完成 (模式: ${this.mode})`, 'DATA');
         } catch (error) {
             logger.error('数据持久化模块初始化失败', 'DATA', '', error);
-            // 在这种情况下，我们可能希望进程退出或进入降级模式
-            throw error; // 抛出错误以在顶层捕获
+            this.isInitialized = false; // 确保失败后可以重试
+            throw error;
         }
     }
 
     async _getData() {
-        if (this.cache) {
-            return this.cache;
-        }
-
-        try {
-            if (this.mode === 'file') {
-                const data = await fs.readFile(this.filePath, 'utf8');
-                this.cache = JSON.parse(data);
-                return this.cache;
-            } else if (this.mode === 'redis') {
-                const data = await redis.get('qwen_proxy_data');
-                this.cache = data ? JSON.parse(data) : this._getDefaultData();
-                return this.cache;
-            }
-        } catch (error) {
-            if (error.code === 'ENOENT') {
-                logger.info('数据文件不存在，正在创建默认文件...', 'FILE');
-                await this._saveData(this._getDefaultData());
-                logger.success('默认数据文件创建成功', 'FILE');
-                return this._getDefaultData();
-            }
-            logger.error('加载数据失败', 'DATA', '', error);
-        }
-        return this._getDefaultData();
+        await this.initializationPromise;
+        return this.cache || this._getDefaultData();
     }
 
     async _saveData(data) {
