@@ -590,61 +590,62 @@ class Account {
      * @returns {Promise<boolean>} 添加是否成功
      */
     async addAccount(email, password) {
-        try {
-            const existingAccount = this.accountTokens.find(acc => acc.email === email);
-            if (existingAccount) {
-                logger.warn(`账户 ${email} 已存在`, 'ACCOUNT');
-                return false;
-            }
-
-            let assignedProxy = null;
-            if (this.proxyManager) {
-                logger.info(`正在为新添加的账户 ${email} 分配代理...`, 'PROXY');
-                assignedProxy = await this.proxyManager.assignProxy(email);
-                if (assignedProxy) {
-                    await this.dataPersistence.saveProxyBinding(email, assignedProxy);
-                    await this.proxyManager.persistStatuses(); // 保存可能更新的代理状态
-                }
-            }
-
-            global.currentLoginProxy = assignedProxy;
-            const token = await this.tokenManager.login(email, password);
-            global.currentLoginProxy = null;
-
-            if (!token) {
-                logger.error(`账户 ${email} 登录失败，无法添加`, 'ACCOUNT');
-                // 如果登录失败，可能代理有问题，标记一下
-                if (assignedProxy) {
-                    this.proxyManager.markProxyAsFailed(assignedProxy);
-                    await this.proxyManager.persistStatuses();
-                }
-                return false;
-            }
-
-            const decoded = this.tokenManager.validateToken(token);
-            if (!decoded) {
-                logger.error(`账户 ${email} 令牌无效，无法添加`, 'ACCOUNT');
-                return false;
-            }
-
-            const newAccount = {
-                email,
-                password,
-                token,
-                expires: decoded.exp,
-                proxy: assignedProxy, // 将代理信息添加到新账户对象中
-            };
-
-            this.accountTokens.push(newAccount);
-            await this.dataPersistence.saveAccount(email, newAccount);
-            this.accountRotator.setAccounts(this.accountTokens);
-
-            logger.success(`成功添加账户: ${email}`, 'ACCOUNT');
-            return true;
-        } catch (error) {
-            logger.error(`添加账户失败 (${email})`, 'ACCOUNT', '', error);
+        if (this.accountTokens.some(acc => acc.email === email)) {
+            logger.warn(`账户 ${email} 已存在`, 'ACCOUNT');
             return false;
         }
+
+        const MAX_PROXY_RETRIES = 3;
+        const MAX_ATTEMPTS_PER_PROXY = 2;
+        const RETRY_DELAY_MS = 20000; // 20秒
+
+        for (let proxyAttempt = 1; proxyAttempt <= MAX_PROXY_RETRIES; proxyAttempt++) {
+            let assignedProxy = null;
+            if (this.proxyManager) {
+                logger.info(`[代理尝试 ${proxyAttempt}/${MAX_PROXY_RETRIES}] 正在为账户 ${email} 分配代理...`, 'PROXY');
+                // 强制分配一个新代理，除非是第一次
+                assignedProxy = await this.proxyManager.assignProxy(email, proxyAttempt > 1);
+                if (assignedProxy) {
+                    await this.dataPersistence.saveProxyBinding(email, assignedProxy);
+                    await this.proxyManager.persistStatuses();
+                } else {
+                    logger.warn(`[代理尝试 ${proxyAttempt}/${MAX_PROXY_RETRIES}] 未能为 ${email} 分配代理`, 'PROXY');
+                }
+            }
+
+            for (let attempt = 1; attempt <= MAX_ATTEMPTS_PER_PROXY; attempt++) {
+                logger.info(`[登录尝试 ${attempt}/${MAX_ATTEMPTS_PER_PROXY}] 正在使用代理 ${assignedProxy || 'N/A'} 尝试登录 ${email}...`, 'ACCOUNT');
+                const newAccount = await this._attemptLogin(email, password, assignedProxy);
+
+                if (newAccount) {
+                    this.accountTokens.push(newAccount);
+                    await this.dataPersistence.saveAccount(email, newAccount);
+                    this.accountRotator.setAccounts(this.accountTokens);
+                    logger.success(`成功添加账户: ${email} (使用代理: ${assignedProxy || 'N/A'})`, 'ACCOUNT');
+                    return true;
+                }
+
+                // 如果登录失败
+                if (attempt < MAX_ATTEMPTS_PER_PROXY) {
+                    logger.info(`登录失败，将在 ${RETRY_DELAY_MS / 1000} 秒后使用同一代理重试...`, 'ACCOUNT');
+                    await this._delay(RETRY_DELAY_MS);
+                }
+            }
+
+            // 如果一个代理的所有尝试都失败了
+            if (assignedProxy && this.proxyManager) {
+                logger.error(`使用代理 ${assignedProxy} 的所有登录尝试均失败，将其标记为失败`, 'PROXY');
+                this.proxyManager.markProxyAsFailed(assignedProxy);
+                await this.proxyManager.persistStatuses();
+            }
+
+            if (proxyAttempt < MAX_PROXY_RETRIES) {
+                logger.info('将在更换代理后重试...', 'PROXY');
+            }
+        }
+
+        logger.error(`为账户 ${email} 尝试了 ${MAX_PROXY_RETRIES} 个代理后，所有登录尝试均失败。添加账户失败。`, 'ACCOUNT');
+        return false;
     }
 
     /**
@@ -716,6 +717,45 @@ class Account {
      */
     async _delay(ms) {
         return new Promise(resolve => setTimeout(resolve, ms))
+    }
+
+    /**
+     * 尝试使用指定的代理进行登录
+     * @param {string} email - 邮箱
+     * @param {string} password - 密码
+     * @param {string|null} proxy - 代理URL
+     * @returns {Promise<Object|null>} 成功则返回账户对象，失败则返回null
+     * @private
+     */
+    async _attemptLogin(email, password, proxy) {
+        try {
+            global.currentLoginProxy = proxy;
+            const token = await this.tokenManager.login(email, password);
+            global.currentLoginProxy = null;
+
+            if (!token) {
+                logger.warn(`使用代理 ${proxy || 'N/A'} 登录 ${email} 失败：未能获取令牌`, 'ACCOUNT');
+                return null;
+            }
+
+            const decoded = this.tokenManager.validateToken(token);
+            if (!decoded) {
+                logger.warn(`使用代理 ${proxy || 'N/A'} 登录 ${email} 失败：令牌无效`, 'ACCOUNT');
+                return null;
+            }
+
+            return {
+                email,
+                password,
+                token,
+                expires: decoded.exp,
+                proxy,
+            };
+        } catch (error) {
+            global.currentLoginProxy = null;
+            logger.error(`使用代理 ${proxy || 'N/A'} 登录 ${email} 时发生异常`, 'ACCOUNT', '', error);
+            return null;
+        }
     }
 
     /**

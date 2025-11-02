@@ -61,9 +61,19 @@ class ProxyManager {
     }
   }
 
-  async assignProxy(email) {
-    if (this.proxyAssignment.has(email)) {
+  async assignProxy(email, forceNew = false) {
+    if (this.proxyAssignment.has(email) && !forceNew) {
       return this.proxyAssignment.get(email);
+    }
+
+    // 如果强制刷新，先解除旧的绑定
+    if (this.proxyAssignment.has(email)) {
+        const oldProxyUrl = this.proxyAssignment.get(email);
+        const oldProxyData = this.proxies.get(oldProxyUrl);
+        if (oldProxyData) {
+            oldProxyData.assignedAccounts.delete(email);
+        }
+        this.proxyAssignment.delete(email);
     }
 
     // P1: Find and verify an unused 'available' proxy

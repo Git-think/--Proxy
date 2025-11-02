@@ -4,7 +4,7 @@
 
 # 🚀 Qwen-Proxy
 
-[![Version](https://img.shields.io/badge/version-2025.11.02.00.33-blue.svg)](https://github.com/Git-think/Qwen2Api-Proxy)
+[![Version](https://img.shields.io/badge/version-2025.11.02.01.39-blue.svg)](https://github.com/Git-think/Qwen2Api-Proxy)
 [![Node.js](https://img.shields.io/badge/Node.js-18+-green.svg)](https://nodejs.org/)
 [![Docker](https://img.shields.io/badge/Docker-supported-blue.svg)](https://hub.docker.com/r/Git-think/qwen2api-proxy)
 [![Binary](https://img.shields.io/badge/Binary-Available-orange.svg)](https://github.com/Git-think/Qwen2Api-Proxy/releases)
@@ -12,6 +12,22 @@
 [📖 文档](#api-文档) | [🐳 Docker 部署](#docker-部署)
 
 </div>
+
+## ✨ 功能亮点
+
+- **🚀 高性能**: 基于 Node.js 构建，支持 PM2 多进程部署，实现卓越性能。
+- **🔑 多密钥管理**: 支持多个 API 密钥，并区分管理员和普通用户权限。
+- **🔄 账户轮询**: 自动轮询账户，实现负载均衡和故障隔离。
+- **🌐 智能代理**:
+  - **状态持久化**: 代理状态（可用、失败）和账户绑定关系持久化，实现秒级启动。
+  - **智能分配**: 四级优先级策略，高效分配和复用代理。
+  - **故障转移**: 自动检测并更换失效代理。
+- **🔁 健壮的登录重试**:
+  - **多层重试机制**: 添加账户时，如果登录失败，会自动更换代理并多次重试，大大提高了在网络不稳定环境下的成功率。
+- **💾 多种数据持久化**: 支持文件和 Redis 两种数据存储方式。
+- **📸 灵活的缓存**: 支持内存和文件两种图片缓存模式，适应不同部署环境。
+- **🖥️ 强大的 CLI 支持**: 提供独立的 CLI 端点，支持高达 256K 的上下文和工具调用。
+- **🐳 全面的部署选项**: 支持 Docker、Docker Compose、PM2 和二进制文件部署。
 
 ## 🛠️ 快速开始
 
@@ -152,6 +168,7 @@ SOCKS5_PROXIES=socks5://user1:pass1@host1:port1,socks5://user2:pass2@host2:port2
     - **P4**: 最后，在所有 `available` 的代理中，选择分配账户最少的进行共享。
 - **按需测试**: 仅在需要为账户分配代理时，才会对选定的代理进行网络测试。
 - **故障转移**: 当一个账户的网络请求失败时，其使用的代理会被标记为 `failed`，并自动触发重新分配流程。
+- **健壮的登录重试**: 在添加新账户时，如果登录失败，系统会自动进行多层重试（最多尝试3个不同代理，每个代理尝试2次），以应对临时的网络问题或代理失效。
 - **日志优化**: 日志中会显示 `email (ProxyIP)` 格式，方便追踪。
 
 **注意事项:**
