@@ -1,5 +1,5 @@
 const axios = require('axios')
-const { sha256Encrypt, JwtDecode } = require('./tools')
+const { sha256Encrypt, JwtDecode, getProxyHost } = require('./tools')
 const { logger } = require('./logger')
 
 /**
@@ -32,26 +32,10 @@ class TokenManager {
       })
 
       if (response.data && response.data.token) {
-        // 解析代理URL以获取IP用于日志
-        let proxyHostForLog = 'N/A';
-        if (proxy) {
-          try {
-            const proxyUrl = new URL(proxy);
-            proxyHostForLog = proxyUrl.hostname;
-          } catch (e) { /* ignore */ }
-        }
-        logger.success(`${email} (${proxyHostForLog}) 登录成功`, 'AUTH')
+        logger.success(`${email} (${getProxyHost(proxy)}) 登录成功`, 'AUTH')
         return response.data.token
       } else {
-        // 登录失败时也尝试显示代理IP
-        let proxyHostForLog = 'N/A';
-        if (proxy) {
-          try {
-            const proxyUrl = new URL(proxy);
-            proxyHostForLog = proxyUrl.hostname;
-          } catch (e) { /* ignore */ }
-        }
-        logger.error(`${email} (${proxyHostForLog}) 登录响应缺少令牌`, 'AUTH')
+        logger.error(`${email} (${getProxyHost(proxy)}) 登录响应缺少令牌`, 'AUTH')
         return null
       }
     } catch (error) {

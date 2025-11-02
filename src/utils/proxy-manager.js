@@ -2,6 +2,7 @@ const { SocksProxyAgent } = require('socks-proxy-agent');
 const axios = require('axios');
 const config = require('../config/index.js');
 const { logger } = require('./logger');
+const { getProxyHost } = require('./tools');
 
 class ProxyManager {
   constructor(dataPersistence) {
@@ -125,7 +126,7 @@ class ProxyManager {
     this.proxyAssignment.set(email, proxyData.url);
     proxyData.assignedAccounts.add(email);
     this.dataPersistence.saveProxyBinding(email, proxyData.url);
-    logger.info(`为账户 ${email} 分配代理: ${proxyData.url}`, 'PROXY');
+    logger.info(`为账户 ${email} 分配代理: ${getProxyHost(proxyData.url)}`, 'PROXY');
     return proxyData.url;
   }
 

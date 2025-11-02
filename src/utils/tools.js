@@ -45,10 +45,23 @@ const generateUUID = () => {
   return crypto.randomUUID()
 }
 
+const getProxyHost = (proxyUrl) => {
+  if (!proxyUrl) {
+    return 'N/A';
+  }
+  try {
+    const url = new URL(proxyUrl);
+    return url.hostname;
+  } catch (e) {
+    return proxyUrl;
+  }
+};
+
 module.exports = {
   isJson,
   sleep,
   sha256Encrypt,
   JwtDecode,
-  generateUUID
+  generateUUID,
+  getProxyHost
 }

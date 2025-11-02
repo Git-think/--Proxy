@@ -3,6 +3,7 @@ const dataPersistence = require('./data-persistence')
 const TokenManager = require('./token-manager')
 const AccountRotator = require('./account-rotator')
 const { logger } = require('./logger')
+const { getProxyHost } = require('./tools')
 /**
  * 账户管理器
  * 统一管理账户、令牌、模型等功能
@@ -136,14 +137,7 @@ class Account {
                     }
                 }
 
-                let randomAccountProxyHost = 'N/A';
-                if (randomAccount.proxy) {
-                    try {
-                        const proxyUrl = new URL(randomAccount.proxy);
-                        randomAccountProxyHost = proxyUrl.hostname;
-                    } catch (e) { /* ignore */ }
-                }
-                logger.info(`初始化 CLI 账户, 随机初始化账号: ${randomAccount.email} (Proxy: ${randomAccountProxyHost})`, 'ACCOUNT');
+                logger.info(`初始化 CLI 账户, 随机初始化账号: ${randomAccount.email} (Proxy: ${getProxyHost(randomAccount.proxy)})`, 'ACCOUNT');
                 await this._initializeCliAccount(randomAccount);
             }
 
@@ -168,7 +162,7 @@ class Account {
                     const assignedProxy = this.proxyManager.assignProxy(account.email);
                     if (assignedProxy) {
                         account.proxy = assignedProxy;
-                        logger.info(`为账户 ${account.email} 分配代理: ${assignedProxy}`, 'PROXY');
+                        logger.info(`为账户 ${account.email} 分配代理: ${getProxyHost(assignedProxy)}`, 'PROXY');
                         // 持久化代理绑定
                         await this.dataPersistence.saveProxyBinding(account.email, assignedProxy);
                     }
@@ -616,7 +610,7 @@ class Account {
                     this.accountTokens.push(newAccount);
                     await this.dataPersistence.saveAccount(email, newAccount);
                     this.accountRotator.setAccounts(this.accountTokens);
-                    logger.success(`成功添加账户: ${email} (使用代理: ${assignedProxy || 'N/A'})`, 'ACCOUNT');
+                    logger.success(`成功添加账户: ${email} (使用代理: ${getProxyHost(assignedProxy)})`, 'ACCOUNT');
                     return true;
                 }
 
@@ -802,13 +796,7 @@ class Account {
         // 尝试为账户重新分配一个新代理
         const newProxy = await this.proxyManager.assignProxy(email, true) // forceNew = true
         if (newProxy) {
-            // 解析新代理URL以获取IP
-            let newProxyHostForLog = newProxy;
-            try {
-                const proxyUrl = new URL(newProxy);
-                newProxyHostForLog = proxyUrl.hostname;
-            } catch (e) { /* ignore */ }
-            logger.success(`账户 ${email} (${newProxyHostForLog}) 登录成功`, 'PROXY')
+            logger.success(`账户 ${email} (${getProxyHost(newProxy)}) 登录成功`, 'PROXY')
             // 保存新的绑定关系
             await this.dataPersistence.saveProxyBinding(email, newProxy)
         } else {
