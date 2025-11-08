@@ -46,9 +46,9 @@ jobs:
         run: |
           latest_tag=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
           if [ -z "$latest_tag" ]; then
-            commits=$(git log --pretty=format:"- %s")
+            commits=$(git log --pretty=format:"- %s" | sort -u)
           else
-            commits=$(git log $latest_tag..HEAD --pretty=format:"- %s")
+            commits=$(git log $latest_tag..HEAD --pretty=format:"- %s" | sort -u)
           fi
           echo "commits<<EOF" >> $GITHUB_OUTPUT
           echo "$commits" >> $GITHUB_OUTPUT
@@ -58,11 +58,11 @@ jobs:
         id: ai_changelog
         if: steps.compare_versions.outputs.changed == 'true' && env.GEMINI_API_KEY != ''
         run: |
-          prompt="Based on the following commit messages, generate a changelog for the release. Please follow this format for each line:\n- Fix: <description> (for bug fixes)\n- Feat: <description> (for new features)\n\nExample:\n- Fix: Resolve startup issues\n- Feat: Implement robust login retry mechanism\n\nCommit messages:\n${{ steps.get_commits.outputs.commits }}"
+          prompt="Based on the following commit messages, generate a changelog for the release. Please follow this format for each line:\n- Fix: <description> (for bug fixes)\n- Feat: <description> (for new features)\n\nDo not add duplicate entries.\n\nExample:\n- Fix: Resolve startup issues\n- Feat: Implement robust login retry mechanism\n\nCommit messages:\n${{ steps.get_commits.outputs.commits }}"
           
           response=$(curl -s -H "Content-Type: application/json" \
             -d "{\"contents\":[{\"parts\":[{\"text\": \"$prompt\"}]}]}" \
-            "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${{ env.GEMINI_API_KEY }}")
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${{ env.GEMINI_API_KEY }}")
             
           changelog=$(echo "$response" | jq -r '.candidates.content.parts.text')
           
