@@ -23,7 +23,7 @@ const sendChatRequest = async (body) => {
             return { status: false, response: null };
         }
 
-        const { token: currentToken, email } = accountInfo;
+        const { token: currentToken, email, userAgent } = accountInfo;
         // 每次循环都重新获取代理，因为它可能在 handleNetworkFailure 中被更新
         const proxy = accountManager.getProxyForAccount(email);
 
@@ -33,7 +33,7 @@ const sendChatRequest = async (body) => {
                 headers: {
                     'authorization': `Bearer ${currentToken}`,
                     'Content-Type': 'application/json',
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36 Edg/141.0.0.0',
+                    'User-Agent': userAgent || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
                     "Connection": "keep-alive",
                     "Accept": "*/*",
                     "Accept-Encoding": "gzip, deflate, br",
@@ -118,11 +118,14 @@ const generateChatID = async (initialToken, model, email, initialProxy) => {
     let currentProxy = initialProxy;
 
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+        const account = accountManager.getAccountByEmail(email);
+        const userAgent = account ? account.userAgent : 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36';
+
         const requestConfig = {
             headers: {
                 'Authorization': `Bearer ${currentToken}`,
                 'Content-Type': 'application/json',
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36 Edg/141.0.0.0',
+                'User-Agent': userAgent,
                 "Connection": "keep-alive",
                 "Accept": "*/*",
                 "Accept-Encoding": "gzip, deflate, br"

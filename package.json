@@ -1,6 +1,6 @@
 {
   "name": "qwen2api-proxy",
-  "version": "2025.11.08.16.00",
+  "version": "2025.11.08.17.42",
   "main": "src/server.js",
   "scripts": {
     "start": "node src/start.js",

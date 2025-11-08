@@ -4,7 +4,7 @@
 
 # 🚀 Qwen-Proxy
 
-[![Version](https://img.shields.io/badge/version-2025.11.08.16.00-blue.svg)](https://github.com/Git-think/Qwen2Api-Proxy)
+[![Version](https://img.shields.io/badge/version-2025.11.08.17.42-blue.svg)](https://github.com/Git-think/Qwen2Api-Proxy)
 [![Node.js](https://img.shields.io/badge/Node.js-18+-green.svg)](https://nodejs.org/)
 [![Docker](https://img.shields.io/badge/Docker-supported-blue.svg)](https://hub.docker.com/r/Git-think/qwen2api-proxy)
 [![Binary](https://img.shields.io/badge/Binary-Available-orange.svg)](https://github.com/Git-think/Qwen2Api-Proxy/releases)
@@ -28,6 +28,7 @@
 - **💾 多种数据持久化**: 支持文件和 Redis 两种数据存储方式。
 - **📸 灵活的缓存**: 支持内存和文件两种图片缓存模式，适应不同部署环境。
 - **🖥️ 强大的 CLI 支持**: 提供独立的 CLI 端点，支持高达 256K 的上下文和工具调用。
+- **🎭 固定的 User-Agent**: 为每个账户绑定一个固定的 User-Agent，更符合真实用户行为。
 - **🐳 全面的部署选项**: 支持 Docker、Docker Compose、PM2 和二进制文件部署。
 - **⚙️ 灵活的配置管理**: 支持通过在 `data` 文件夹中添加 `reload-env`, `add`, `set-env` 文件来动态管理配置。
 

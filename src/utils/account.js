@@ -4,6 +4,7 @@ const TokenManager = require('./token-manager')
 const AccountRotator = require('./account-rotator')
 const { logger } = require('./logger')
 const { getProxyHost } = require('./tools')
+const { getRandomWindowsUserAgent } = require('./user-agent')
 /**
  * 账户管理器
  * 统一管理账户、令牌、模型等功能
@@ -124,6 +125,19 @@ class Account {
 
             // 验证和清理无效令牌
             await this._validateAndCleanTokens()
+
+            // 为没有 User-Agent 的账户分配并保存
+            let uaAssigned = false;
+            for (const account of this.accountTokens) {
+                if (!account.userAgent) {
+                    account.userAgent = getRandomWindowsUserAgent();
+                    await this.dataPersistence.saveAccount(account.email, { userAgent: account.userAgent });
+                    uaAssigned = true;
+                }
+            }
+            if (uaAssigned) {
+                logger.info('已为新账户分配并绑定固定的 User-Agent', 'ACCOUNT');
+            }
 
             // 更新账户轮询器
             this.accountRotator.setAccounts(this.accountTokens)
