@@ -54,6 +54,7 @@ class DataPersistence {
     _getDefaultData() {
         return {
             accounts: [],
+            proxies: [], // 新增字段
             proxyBindings: {},
             proxyStatuses: {}
         };
@@ -94,6 +95,20 @@ class DataPersistence {
     async saveProxyStatuses(statuses) {
         const data = await this._getData();
         data.proxyStatuses = statuses;
+        await this._saveData(data);
+    }
+
+    async loadProxies() {
+        const data = await this._getData();
+        return data.proxies || [];
+    }
+
+    async saveProxies(proxies) {
+        const data = await this._getData();
+        // 使用 Set 进行去重和增量添加
+        const existingProxies = new Set(data.proxies || []);
+        proxies.forEach(p => existingProxies.add(p));
+        data.proxies = [...existingProxies];
         await this._saveData(data);
     }
 }

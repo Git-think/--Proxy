@@ -103,11 +103,18 @@ class FileConfig {
     }
 
     async addConfig(key, value, accountManager) {
-        if (key.toUpperCase() === 'ACCOUNTS') {
+        const upperKey = key.toUpperCase();
+        if (upperKey === 'ACCOUNTS') {
             const [email, password] = value.split(':');
             if (email && password) {
                 logger.info(`正在添加账户: ${email}`, 'FILE_CONFIG');
                 await accountManager.addAccount(email, password);
+            }
+        } else if (upperKey === 'SOCKS5_PROXIES') {
+            const proxies = value.split(/\r?\n|,/).map(proxy => proxy.trim()).filter(proxy => proxy.length > 0);
+            if (proxies.length > 0) {
+                await dataPersistence.saveProxies(proxies);
+                logger.info(`已通过文件动态添加/更新 ${proxies.length} 个代理。请重启服务以应用更改。`, 'FILE_CONFIG');
             }
         }
     }

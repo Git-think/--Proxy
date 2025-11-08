@@ -13,84 +13,96 @@ const { SocksProxyAgent } = require('socks-proxy-agent')
  * @returns {Promise<Object>} 响应结果
  */
 const sendChatRequest = async (body) => {
-    const accountInfo = accountManager.getNextAccount();
-    if (!accountInfo) {
-        logger.error('无法获取有效的账户信息', 'ACCOUNT');
-        return { status: false, response: null };
-    }
+    const MAX_RETRIES = 3;
+    let lastError = null;
 
-    const { token: currentToken, email, proxy } = accountInfo;
-
-    try {
-        // 构建请求配置
-        const requestConfig = {
-            headers: {
-                'authorization': `Bearer ${currentToken}`,
-                'Content-Type': 'application/json',
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36 Edg/141.0.0.0',
-                "Connection": "keep-alive",
-                "Accept": "*/*",
-                "Accept-Encoding": "gzip, deflate, br",
-                ...(config.ssxmodItna && { 'Cookie': `ssxmod_itna=${config.ssxmodItna};ssxmod_itna2=${config.ssxmodItna2}` })
-            },
-            responseType: body.stream ? 'stream' : 'json',
-            timeout: 60 * 1000,
-        };
-
-        // 如果有代理，则配置 axios 使用代理 Agent
-        if (proxy) {
-            try {
-                const agent = new SocksProxyAgent(proxy);
-                requestConfig.httpAgent = agent;
-                requestConfig.httpsAgent = agent;
-            } catch (agentError) {
-                logger.error(`为 sendChatRequest 创建代理Agent失败 (${proxy}): ${agentError.message}`, 'PROXY');
-            }
-        }
-
-        const chat_id = await generateChatID(currentToken, body.model, email, proxy);
-        if (!chat_id) {
-            logger.error('无法生成 chat_id，终止聊天请求', 'CHAT');
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+        const accountInfo = accountManager.getNextAccount();
+        if (!accountInfo) {
+            logger.error('无法获取有效的账户信息', 'ACCOUNT');
             return { status: false, response: null };
         }
 
-        logger.network(`发送聊天请求 (账户: ${email})`, 'REQUEST');
-        const response = await axios.post(`https://chat.qwen.ai/api/v2/chat/completions?chat_id=${chat_id}`, {
-            ...body,
-            chat_id: chat_id
-        }, requestConfig);
+        const { token: currentToken, email } = accountInfo;
+        // 每次循环都重新获取代理，因为它可能在 handleNetworkFailure 中被更新
+        const proxy = accountManager.getProxyForAccount(email);
 
-        // 请求成功
-        if (response.status === 200) {
-            return {
-                currentToken: currentToken,
-                status: true,
-                response: response.data
+        try {
+            // 构建请求配置
+            const requestConfig = {
+                headers: {
+                    'authorization': `Bearer ${currentToken}`,
+                    'Content-Type': 'application/json',
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36 Edg/141.0.0.0',
+                    "Connection": "keep-alive",
+                    "Accept": "*/*",
+                    "Accept-Encoding": "gzip, deflate, br",
+                    ...(config.ssxmodItna && { 'Cookie': `ssxmod_itna=${config.ssxmodItna};ssxmod_itna2=${config.ssxmodItna2}` })
+                },
+                responseType: body.stream ? 'stream' : 'json',
+                timeout: 60 * 1000,
             };
-        }
 
-    } catch (error) {
-        let proxyHostForLog = proxy || 'none';
-        if (proxy) {
-            try {
-                const proxyUrl = new URL(proxy);
-                proxyHostForLog = proxyUrl.hostname;
-            } catch (e) { /* ignore */ }
-        }
-        logger.error(`发送聊天请求失败 (账户: ${email} (${proxyHostForLog})): ${error.message}`, 'REQUEST');
+            if (proxy) {
+                try {
+                    const agent = new SocksProxyAgent(proxy);
+                    requestConfig.httpAgent = agent;
+                    requestConfig.httpsAgent = agent;
+                } catch (agentError) {
+                    logger.error(`为 sendChatRequest 创建代理Agent失败 (${proxy}): ${agentError.message}`, 'PROXY');
+                }
+            }
 
-        // 检查网络错误，如果由代理引起，则处理
-        const networkErrorCodes = ['ECONNRESET', 'ECONNREFUSED', 'ETIMEDOUT', 'ENOTFOUND', 'ENETUNREACH', 'EAI_AGAIN'];
-        if (proxy && (networkErrorCodes.includes(error.code) || error.message.includes('timeout') || error.message.includes('ECONN') || error.message.includes('socket'))) {
-            logger.warn(`检测到网络错误，可能由账户 ${email} (${proxyHostForLog}) 的代理引起，尝试重新分配...`, 'PROXY');
-            await accountManager.handleNetworkFailure(email, proxy);
-        }
+            const chat_id = await generateChatID(currentToken, body.model, email, proxy);
+            if (!chat_id) {
+                // generateChatID 内部已经处理了代理失败和重试，如果仍然失败，则终止
+                logger.error('无法生成 chat_id，终止聊天请求', 'CHAT');
+                return { status: false, response: null };
+            }
 
-        return {
-            status: false,
-            response: null
-        };
+            logger.network(`发送聊天请求 (账户: ${email}, 尝试: ${attempt}/${MAX_RETRIES})`, 'REQUEST');
+            const response = await axios.post(`https://chat.qwen.ai/api/v2/chat/completions?chat_id=${chat_id}`, {
+                ...body,
+                chat_id: chat_id
+            }, requestConfig);
+
+            if (response.status === 200) {
+                return {
+                    currentToken: currentToken,
+                    status: true,
+                    response: response.data
+                };
+            }
+            // 对于非200的状态码，也视为一种需要记录的错误
+            lastError = new Error(`Request failed with status code ${response.status}`);
+
+
+        } catch (error) {
+            lastError = error; // 保存当前错误
+            let proxyHostForLog = proxy || 'none';
+            if (proxy) {
+                try {
+                    const proxyUrl = new URL(proxy);
+                    proxyHostForLog = proxyUrl.hostname;
+                } catch (e) { /* ignore */ }
+            }
+            logger.error(`发送聊天请求失败 (账户: ${email} (${proxyHostForLog}), 尝试: ${attempt}/${MAX_RETRIES}): ${error.message}`, 'REQUEST');
+
+            const networkErrorCodes = ['ECONNRESET', 'ECONNREFUSED', 'ETIMEDOUT', 'ENOTFOUND', 'ENETUNREACH', 'EAI_AGAIN'];
+            if (proxy && (networkErrorCodes.includes(error.code) || error.message.includes('timeout') || error.message.includes('ECONN') || error.message.includes('socket'))) {
+                logger.warn(`检测到网络错误，可能由代理引起，正在更换代理并重试...`, 'PROXY');
+                await accountManager.handleNetworkFailure(email, proxy);
+                // 继续下一次循环
+                continue;
+            } else {
+                // 如果不是可重试的网络错误，则直接跳出循环
+                break;
+            }
+        }
     }
+
+    logger.error(`经过 ${MAX_RETRIES} 次尝试后，请求最终失败。最后一次错误: ${lastError.message}`, 'REQUEST');
+    return { status: false, response: null };
 };
 
 /**
@@ -99,65 +111,75 @@ const sendChatRequest = async (body) => {
  * @param {*} model
  * @returns {Promise<string|null>} 返回生成的chat_id，如果失败则返回null
  */
-const generateChatID = async (currentToken, model, email, proxy) => {
-    const requestConfig = {
-        headers: {
-            'Authorization': `Bearer ${currentToken}`,
-            'Content-Type': 'application/json',
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36 Edg/141.0.0.0',
-            "Connection": "keep-alive",
-            "Accept": "*/*",
-            "Accept-Encoding": "gzip, deflate, br"
-        },
-        timeout: 60 * 1000,
-    }
+const generateChatID = async (initialToken, model, email, initialProxy) => {
+    const MAX_RETRIES = 3;
+    let lastError = null;
+    let currentToken = initialToken;
+    let currentProxy = initialProxy;
 
-    // 如果有代理，则配置 axios 使用代理 Agent
-    if (proxy) {
-        try {
-            const agent = new SocksProxyAgent(proxy);
-            requestConfig.httpAgent = agent;
-            requestConfig.httpsAgent = agent;
-        } catch (agentError) {
-            logger.error(`为generateChatID创建代理Agent失败 (${proxy}): ${agentError.message}`, 'PROXY')
-        }
-    }
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+        const requestConfig = {
+            headers: {
+                'Authorization': `Bearer ${currentToken}`,
+                'Content-Type': 'application/json',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36 Edg/141.0.0.0',
+                "Connection": "keep-alive",
+                "Accept": "*/*",
+                "Accept-Encoding": "gzip, deflate, br"
+            },
+            timeout: 60 * 1000,
+        };
 
-    try {
-        const response_data = await axios.post("https://chat.qwen.ai/api/v2/chats/new", {
-            "title": "New Chat",
-            "models": [
-                model
-            ],
-            "chat_mode": "local",
-            "chat_type": "t2i",
-            "timestamp": new Date().getTime()
-        }, requestConfig)
-
-        // console.log(response_data.data)
-        
-        return response_data.data?.data?.id || null
-
-    } catch (error) {
-        // 解析代理URL以获取IP用于日志
-        let proxyHostForLog = proxy || 'none';
-        if (proxy) {
+        if (currentProxy) {
             try {
-                const proxyUrl = new URL(proxy);
-                proxyHostForLog = proxyUrl.hostname;
-            } catch (e) { /* ignore */ }
+                const agent = new SocksProxyAgent(currentProxy);
+                requestConfig.httpAgent = agent;
+                requestConfig.httpsAgent = agent;
+            } catch (agentError) {
+                logger.error(`为generateChatID创建代理Agent失败 (${currentProxy}): ${agentError.message}`, 'PROXY');
+            }
         }
-        logger.error(`生成chat_id失败 (账户: ${email} (${proxyHostForLog})): ${error.message}`, 'CHAT')
-        
-        // 同样检查网络错误
-        const networkErrorCodes = ['ECONNRESET', 'ECONNREFUSED', 'ETIMEDOUT', 'ENOTFOUND', 'ENETUNREACH', 'EAI_AGAIN'];
-        if (proxy && (networkErrorCodes.includes(error.code) || error.message.includes('timeout') || error.message.includes('ECONN') || error.message.includes('socket'))) {
-            logger.warn(`检测到网络错误，可能由账户 ${email} (${proxyHostForLog}) 的代理引起，尝试重新分配...`, 'PROXY')
-            await accountManager.handleNetworkFailure(email, proxy);
+
+        try {
+            const response_data = await axios.post("https://chat.qwen.ai/api/v2/chats/new", {
+                "title": "New Chat",
+                "models": [model],
+                "chat_mode": "local",
+                "chat_type": "t2i",
+                "timestamp": new Date().getTime()
+            }, requestConfig);
+
+            if (response_data.data?.data?.id) {
+                return response_data.data.data.id;
+            }
+            lastError = new Error('Invalid response data when generating chat_id');
+
+        } catch (error) {
+            lastError = error;
+            let proxyHostForLog = currentProxy || 'none';
+            if (currentProxy) {
+                try {
+                    const proxyUrl = new URL(currentProxy);
+                    proxyHostForLog = proxyUrl.hostname;
+                } catch (e) { /* ignore */ }
+            }
+            logger.error(`生成chat_id失败 (账户: ${email} (${proxyHostForLog}), 尝试: ${attempt}/${MAX_RETRIES}): ${error.message}`, 'CHAT');
+
+            const networkErrorCodes = ['ECONNRESET', 'ECONNREFUSED', 'ETIMEDOUT', 'ENOTFOUND', 'ENETUNREACH', 'EAI_AGAIN'];
+            if (currentProxy && (networkErrorCodes.includes(error.code) || error.message.includes('timeout') || error.message.includes('ECONN') || error.message.includes('socket'))) {
+                logger.warn(`检测到网络错误，可能由代理引起，正在更换代理并重试...`, 'PROXY');
+                await accountManager.handleNetworkFailure(email, currentProxy);
+                // 更新代理以供下一次循环使用
+                currentProxy = accountManager.getProxyForAccount(email);
+                continue;
+            } else {
+                break;
+            }
         }
-        
-        return null
     }
+
+    logger.error(`经过 ${MAX_RETRIES} 次尝试后，生成chat_id最终失败。最后一次错误: ${lastError.message}`, 'CHAT');
+    return null;
 }
 
 module.exports = {

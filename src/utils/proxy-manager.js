@@ -5,12 +5,12 @@ const { logger } = require('./logger');
 const { getProxyHost } = require('./tools');
 
 class ProxyManager {
-  constructor(dataPersistence) {
+  constructor(dataPersistence, initialProxies = []) {
     this.proxies = new Map(); // Key: proxyUrl, Value: { url, status, assignedAccounts }
     this.proxyAssignment = new Map(); // Key: email, Value: proxyUrl
     this.dataPersistence = dataPersistence;
 
-    config.socks5Proxies.forEach(proxyUrl => {
+    initialProxies.forEach(proxyUrl => {
       this.proxies.set(proxyUrl, {
         url: proxyUrl,
         status: 'untested', // 'untested', 'available', 'failed'
@@ -55,7 +55,9 @@ class ProxyManager {
       return true;
     } catch (error) {
       proxyData.status = 'failed';
-      logger.error(`代理 ${proxyUrl} 测试失败: ${error.message}`, 'PROXY');
+      // 只记录错误消息，避免记录包含循环引用的整个错误对象
+      const errorMessage = error.isAxiosError ? error.message : (error instanceof Error ? error.message : String(error));
+      logger.error(`代理 ${proxyUrl} 测试失败: ${errorMessage}`, 'PROXY');
       return false;
     } finally {
       await this.persistStatuses();

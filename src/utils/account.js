@@ -39,10 +39,15 @@ class Account {
      */
     async _initialize() {
         try {
+            // 加载来自 data.json 的代理
+            const fileProxies = await this.dataPersistence.loadProxies();
+            // 合并来自环境变量和文件的代理，并去重
+            const combinedProxies = [...new Set([...config.socks5Proxies, ...fileProxies])];
+
             // 初始化 ProxyManager
-            if (config.socks5Proxies.length > 0) {
+            if (combinedProxies.length > 0) {
                 const ProxyManager = require('./proxy-manager');
-                this.proxyManager = new ProxyManager(this.dataPersistence);
+                this.proxyManager = new ProxyManager(this.dataPersistence, combinedProxies);
 
                 const savedBindings = await this.dataPersistence.loadProxyBindings();
                 const savedStatuses = await this.dataPersistence.loadProxyStatuses();
@@ -411,6 +416,18 @@ class Account {
      */
     getAccountByEmail(email) {
         return this.accountRotator.getAccountByEmail(email);
+    }
+
+    /**
+     * 根据邮箱获取账户的代理
+     * @param {string} email - 邮箱地址
+     * @returns {string|null} 代理URL或null
+     */
+    getProxyForAccount(email) {
+        if (!this.proxyManager) {
+            return null;
+        }
+        return this.proxyManager.getProxyForAccount(email);
     }
 
     /**

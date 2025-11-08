@@ -4,7 +4,7 @@
 
 # 🚀 Qwen-Proxy
 
-[![Version](https://img.shields.io/badge/version-2025.11.02.09.39-blue.svg)](https://github.com/Git-think/Qwen2Api-Proxy)
+[![Version](https://img.shields.io/badge/version-2025.11.08.16.00-blue.svg)](https://github.com/Git-think/Qwen2Api-Proxy)
 [![Node.js](https://img.shields.io/badge/Node.js-18+-green.svg)](https://nodejs.org/)
 [![Docker](https://img.shields.io/badge/Docker-supported-blue.svg)](https://hub.docker.com/r/Git-think/qwen2api-proxy)
 [![Binary](https://img.shields.io/badge/Binary-Available-orange.svg)](https://github.com/Git-think/Qwen2Api-Proxy/releases)
@@ -21,7 +21,8 @@
 - **🌐 智能代理**:
   - **状态持久化**: 代理状态（可用、失败）和账户绑定关系持久化，实现秒级启动。
   - **智能分配**: 四级优先级策略，高效分配和复用代理。
-  - **故障转移**: 自动检测并更换失效代理。
+  - **故障转移与自动重试**: 当请求因代理问题失败时，系统会自动更换代理并重试请求（最多3次），而不是直接返回错误给用户。
+  - **增量与去重**: 支持从环境变量和 `data/data.json` 文件中合并加载代理列表，并自动去除重复项。
 - **🔁 健壮的登录重试**:
   - **多层重试机制**: 添加账户时，如果登录失败，会自动更换代理并多次重试，大大提高了在网络不稳定环境下的成功率。
 - **💾 多种数据持久化**: 支持文件和 Redis 两种数据存储方式。
@@ -168,7 +169,7 @@ SOCKS5_PROXIES=socks5://user1:pass1@host1:port1,socks5://user2:pass2@host2:port2
     - **P3**: 再次，随机尝试一个 `failed` 的代理，看其是否已恢复。
     - **P4**: 最后，在所有 `available` 的代理中，选择分配账户最少的进行共享。
 - **按需测试**: 仅在需要为账户分配代理时，才会对选定的代理进行网络测试。
-- **故障转移**: 当一个账户的网络请求失败时，其使用的代理会被标记为 `failed`，并自动触发重新分配流程。
+- **故障转移与自动重试**: 当一个账户的网络请求失败时，其使用的代理会被标记为 `failed`，并自动触发重新分配流程。系统会立即尝试使用新代理重试失败的请求，对用户透明。
 - **健壮的登录重试**: 在添加新账户时，如果登录失败，系统会自动进行多层重试（最多尝试3个不同代理，每个代理尝试2次），以应对临时的网络问题或代理失效。
 - **日志优化**: 日志中会显示 `email (ProxyIP)` 格式，方便追踪。
 
@@ -192,7 +193,7 @@ SOCKS5_PROXIES=socks5://user1:pass1@host1:port1,socks5://user2:pass2@host2:port2
 | 文件名 | 功能 | 描述 |
 | --- | --- | --- |
 | `set-env` | **设置/覆盖** 环境变量 | **支持设置或覆盖项目中所使用的任何环境变量** (例如 `SERVICE_PORT`, `LOG_LEVEL`, `DATA_SAVE_MODE` 等)。<br>• **最高优先级**: 它的配置会覆盖 `data.json` 和 `.env` 文件中的同名变量。<br>• **持久化**: 设置的值会被永久保存在 `data/data.json` 中，直到下一次被 `set-env` 修改。<br>• **自动删除**: 处理后文件会被自动删除。 |
-| `add` | **增量添加** 数据 | 主要用于动态添加**账户** (`ACCOUNTS`)。这是一个增量操作，不会影响现有账户。处理后文件会被自动删除。 |
+| `add` | **增量添加** 数据 | 用于动态添加**账户** (`ACCOUNTS`) 或 **代理** (`SOCKS5_PROXIES`)。这是一个增量操作，不会影响现有数据。处理后文件会被自动删除。 |
 | `reload-env` | **增量重载账户/重置代理** | 用于从 `.env` 文件中**增量添加新账户** (`ACCOUNTS`) 或将所有**代理** (`SOCKS5_PROXIES`) 的状态重置为 `untested`。它不会影响或删除现有账户。处理后文件会被自动删除。 |
 
 #### 使用示例
