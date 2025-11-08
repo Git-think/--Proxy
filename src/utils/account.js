@@ -31,7 +31,7 @@ class Account {
         this.proxyManager = null;
 
         // 初始化
-        this._initialize()
+        this.initializationPromise = this._initialize();
     }
 
     /**

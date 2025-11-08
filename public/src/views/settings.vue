@@ -65,10 +65,16 @@
                                 + 添加代理
                             </button>
                         </div>
-                        <div v-if="proxies.length === 0" class="text-gray-500 text-center py-4">
+                        <div v-if="proxyLoading" class="text-gray-500 text-center py-4">
+                            正在加载代理...
+                        </div>
+                        <div v-else-if="proxyError" class="text-red-500 text-center py-4">
+                            加载代理失败: {{ proxyError }}
+                        </div>
+                        <div v-else-if="proxies.length === 0" class="text-gray-500 text-center py-4">
                             暂无代理
                         </div>
-                        <div v-for="(proxy, index) in proxies" :key="index"
+                        <div v-else v-for="(proxy, index) in proxies" :key="index"
                             class="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg p-3">
                             <input :value="proxy.url" type="text" readonly
                                 class="flex-1 rounded-lg border-gray-300 bg-white shadow-sm h-8 text-sm px-3">
@@ -193,6 +199,8 @@ const showAddKeyModal = ref(false)
 const newApiKey = ref('')
 const proxies = ref([])
 const newProxyUrl = ref('')
+const proxyLoading = ref(true)
+const proxyError = ref(null)
 
 const loadSettings = async () => {
     try {
@@ -217,6 +225,8 @@ const loadSettings = async () => {
 }
 
 const loadProxies = async () => {
+    proxyLoading.value = true
+    proxyError.value = null
     try {
         const res = await axios.get('/api/proxies', {
             headers: {
@@ -226,6 +236,9 @@ const loadProxies = async () => {
         proxies.value = res.data
     } catch (error) {
         console.error('加载代理失败:', error)
+        proxyError.value = error.response?.data?.error || error.message
+    } finally {
+        proxyLoading.value = false
     }
 }
 
@@ -365,6 +378,7 @@ const deleteRegularKey = async (index) => {
 
 onMounted(() => {
     loadSettings()
+    loadProxies()
 })
 </script>
 

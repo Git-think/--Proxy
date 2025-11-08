@@ -14,6 +14,7 @@ const accountsRouter = require('./routes/accounts.js')
 const settingsRouter = require('./routes/settings.js')
 const TokenManager = require('./utils/token-manager');
 const DataPersistence = require('./utils/data-persistence');
+const accountManager = require('./utils/account');
 
 
 
@@ -58,13 +59,22 @@ const serverInfo = {
   enableFileLog: config.enableFileLog
 }
 
-const startServer = () => {
-  const server = app.listen(config.listenPort, config.listenAddress, () => {
-    const address = server.address();
-    serverInfo.address = address.address;
-    serverInfo.port = address.port;
-    logger.server('服务器启动成功', 'SERVER', serverInfo);
-  });
+const startServer = async () => {
+  try {
+    // 等待 AccountManager 初始化完成
+    await accountManager.initializationPromise;
+    logger.info('AccountManager 初始化完成，启动 Web 服务器...', 'SERVER');
+
+    const server = app.listen(config.listenPort, config.listenAddress, () => {
+      const address = server.address();
+      serverInfo.address = address.address;
+      serverInfo.port = address.port;
+      logger.server('服务器启动成功', 'SERVER', serverInfo);
+    });
+  } catch (error) {
+    logger.error('服务器启动失败', 'SERVER', '', error);
+    process.exit(1);
+  }
 };
 
 startServer();
