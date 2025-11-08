@@ -17,6 +17,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    env:
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
@@ -49,9 +51,7 @@ jobs:
 
       - name: Generate changelog with AI
         id: ai_changelog
-        if: steps.compare_versions.outputs.changed == 'true' && secrets.GEMINI_API_KEY != ''
-        env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        if: steps.compare_versions.outputs.changed == 'true' && env.GEMINI_API_KEY != ''
         run: |
           prompt="Based on the following commit messages, generate a changelog for the release. Please follow this format for each line:\n- Fix: <description> (for bug fixes)\n- Feat: <description> (for new features)\n\nExample:\n- Fix: Resolve startup issues\n- Feat: Implement robust login retry mechanism\n\nCommit messages:\n${{ steps.get_commits.outputs.commits }}"
           
