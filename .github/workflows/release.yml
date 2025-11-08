@@ -84,8 +84,7 @@ jobs:
             echo "${{ steps.ai_changelog.outputs.body }}" >> $GITHUB_OUTPUT
             echo "EOF" >> $GITHUB_OUTPUT
           else
-            body="Release of version v${{ steps.current_version.outputs.version }}"
-            echo "body=$body" >> $GITHUB_OUTPUT
+            echo "body=Release of version v${{ steps.current_version.outputs.version }}" >> $GITHUB_OUTPUT
           fi
 
       - name: Create release
