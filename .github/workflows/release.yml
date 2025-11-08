@@ -38,13 +38,57 @@ jobs:
         if: steps.previous_version.outputs.version != steps.current_version.outputs.version
         run: echo "changed=true" >> $GITHUB_OUTPUT
 
+      - name: Get commit messages
+        id: get_commits
+        if: steps.compare_versions.outputs.changed == 'true'
+        run: |
+          commits=$(git log v${{ steps.previous_version.outputs.version }}..HEAD --pretty=format:"- %s")
+          echo "commits<<EOF" >> $GITHUB_OUTPUT
+          echo "$commits" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Generate changelog with AI
+        id: ai_changelog
+        if: steps.compare_versions.outputs.changed == 'true' && secrets.GEMINI_API_KEY != ''
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          prompt="Based on the following commit messages, generate a changelog for the release. Please follow this format for each line:\n- Fix: <description> (for bug fixes)\n- Feat: <description> (for new features)\n\nExample:\n- Fix: Resolve startup issues\n- Feat: Implement robust login retry mechanism\n\nCommit messages:\n${{ steps.get_commits.outputs.commits }}"
+          
+          response=$(curl -s -H "Content-Type: application/json" \
+            -d "{\"contents\":[{\"parts\":[{\"text\": \"$prompt\"}]}]}" \
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${{ env.GEMINI_API_KEY }}")
+            
+          changelog=$(echo "$response" | jq -r '.candidates.content.parts.text')
+          
+          if [ -z "$changelog" ] || [ "$changelog" == "null" ]; then
+            echo "generated=false" >> $GITHUB_OUTPUT
+          else
+            echo "generated=true" >> $GITHUB_OUTPUT
+            echo "body<<EOF" >> $GITHUB_OUTPUT
+            echo "$changelog" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Set release body
+        id: set_release_body
+        if: steps.compare_versions.outputs.changed == 'true'
+        run: |
+          if [ "${{ steps.ai_changelog.outputs.generated }}" == "true" ]; then
+            echo "body<<EOF" >> $GITHUB_OUTPUT
+            echo "${{ steps.ai_changelog.outputs.body }}" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          else
+            body="Release of version v${{ steps.current_version.outputs.version }}"
+            echo "body=$body" >> $GITHUB_OUTPUT
+          fi
+
       - name: Create release
         if: steps.compare_versions.outputs.changed == 'true'
         uses: actions/create-release@v1
         with:
           tag_name: v${{ steps.current_version.outputs.version }}
           release_name: Release v${{ steps.current_version.outputs.version }}
-          body: |
-            Release of version v${{ steps.current_version.outputs.version }}
+          body: ${{ steps.set_release_body.outputs.body }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
